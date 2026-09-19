@@ -55,6 +55,7 @@ async def create_streaming_generator(
         async with client.stream("POST", url, headers=headers, json=body) as response:
             if response.status_code != 200:
                 error_body = await response.aread()
+                logger.error(f"Provider error {response.status_code}: {error_body.decode()[:500]}")
                 yield f"data: {json.dumps({'error': error_body.decode()})}\n\n".encode()
                 return
 
@@ -142,6 +143,7 @@ class ProxyClient:
                 url, headers=headers, json=transformed_body
             )
             if response.status_code != 200:
+                logger.error(f"Provider error {response.status_code}: {response.text[:500]}")
                 raise HTTPException(
                     status_code=response.status_code,
                     detail=f"Chat completion failed: {response.text}",

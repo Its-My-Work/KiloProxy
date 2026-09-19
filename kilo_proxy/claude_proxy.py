@@ -1,6 +1,7 @@
 """Claude-compatible API proxy module for kilo-proxy."""
 
 import json
+import logging
 import uuid
 from typing import Any, AsyncIterator, Dict, List, Optional, Union
 
@@ -10,6 +11,8 @@ from fastapi.responses import StreamingResponse
 
 from kilo_proxy.config import load_config
 from kilo_proxy.ip_shuffler import get_shuffler
+
+logger = logging.getLogger("kilo-proxy")
 
 BASE_URL = "https://api.kilo.ai/api/openrouter"
 
@@ -151,6 +154,7 @@ async def _stream_claude_completion(
             async with client.stream("POST", url, headers=headers, json=body) as response:
                 if response.status_code != 200:
                     error_body = await response.aread()
+                    logger.error(f"Provider error {response.status_code}: {error_body.decode()[:500]}")
                     yield _sse_event({"type": "error", "error": {"type": "api_error", "message": error_body.decode()}})
                     return
 
@@ -280,6 +284,7 @@ async def create_claude_completion(
     async with httpx.AsyncClient(**client_kwargs) as client:
         response = await client.post(url, headers=headers, json=body)
         if response.status_code != 200:
+            logger.error(f"Provider error {response.status_code}: {response.text[:500]}")
             raise HTTPException(
                 status_code=response.status_code,
                 detail=f"Claude completion failed: {response.text}",
