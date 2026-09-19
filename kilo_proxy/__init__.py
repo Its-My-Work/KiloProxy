@@ -1,3 +1,3 @@
-"""Kilo Proxy - OpenAI-compatible API proxy for Kilo."""
+"""Kilo Proxy - OpenAI and Claude-compatible API proxy for Kilo."""
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"

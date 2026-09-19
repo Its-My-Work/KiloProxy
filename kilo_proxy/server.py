@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from kilo_proxy import __version__
 from kilo_proxy.config import load_config
 from kilo_proxy.ip_shuffler import init_shuffler, shutdown_shuffler
+from kilo_proxy.claude_proxy import create_claude_completion
 from kilo_proxy.proxy import (
     ProxyClient,
     proxy_chat_completions,
@@ -35,7 +36,7 @@ logger = logging.getLogger("kilo-proxy")
 
 app = FastAPI(
     title="Kilo Proxy",
-    description="Fully OpenAI-compatible API proxy for Kilo",
+    description="Fully OpenAI and Claude-compatible API proxy for Kilo",
     version=__version__,
 )
 
@@ -351,3 +352,97 @@ async def proxy_catch_all(
                 )
         else:
             return JSONResponse(content=response.text, status_code=response.status_code)
+
+
+# --- Claude-compatible API models ---
+
+class ClaudeTextContent(BaseModel):
+    type: str = "text"
+    text: str
+
+
+class ClaudeImageSource(BaseModel):
+    type: str = "base64"
+    media_type: str
+    data: str
+
+
+class ClaudeImageContent(BaseModel):
+    type: str = "image"
+    source: ClaudeImageSource
+
+
+class ClaudeToolUseContent(BaseModel):
+    type: str = "tool_use"
+    id: str
+    name: str
+    input: Dict[str, Any] = {}
+
+
+class ClaudeToolResultContent(BaseModel):
+    type: str = "tool_result"
+    tool_use_id: str
+    content: Optional[Union[str, List[Dict[str, Any]]]] = None
+
+
+ClaudeContent = Union[ClaudeTextContent, ClaudeImageContent, ClaudeToolUseContent, ClaudeToolResultContent]
+
+
+class ClaudeMessage(BaseModel):
+    role: str
+    content: Union[str, List[ClaudeContent]]
+
+
+class ClaudeTool(BaseModel):
+    name: str
+    description: Optional[str] = None
+    input_schema: Optional[Dict[str, Any]] = None
+
+
+class ClaudeMessagesRequest(BaseModel):
+    model: str
+    messages: List[ClaudeMessage]
+    max_tokens: int = 4096
+    system: Optional[Union[str, List[Dict[str, Any]]]] = None
+    temperature: Optional[float] = None
+    top_p: Optional[float] = None
+    top_k: Optional[int] = None
+    stop_sequences: Optional[List[str]] = None
+    stream: Optional[bool] = False
+    tools: Optional[List[ClaudeTool]] = None
+    tool_choice: Optional[Dict[str, Any]] = None
+    metadata: Optional[Dict[str, Any]] = None
+
+    model_config = {"extra": "allow"}
+
+
+# --- Claude-compatible API endpoints ---
+
+@app.post("/v1/messages")
+async def claude_messages(
+    request: ClaudeMessagesRequest,
+    raw_request: Request,
+    authorization: Optional[str] = Header(None),
+):
+    system_text = None
+    if isinstance(request.system, str):
+        system_text = request.system
+    elif isinstance(request.system, list):
+        parts = []
+        for block in request.system:
+            if isinstance(block, dict) and block.get("type") == "text":
+                parts.append(block.get("text", ""))
+        system_text = "\n".join(parts) if parts else None
+
+    messages = [msg.model_dump() for msg in request.messages]
+
+    return await create_claude_completion(
+        system=system_text,
+        messages=messages,
+        model=request.model,
+        max_tokens=request.max_tokens,
+        temperature=request.temperature,
+        top_p=request.top_p,
+        stop_sequences=request.stop_sequences,
+        stream=request.stream or False,
+    )
