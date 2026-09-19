@@ -3,15 +3,16 @@
 [![PyPI](https://img.shields.io/pypi/v/kilo-proxy?color=blue)](https://pypi.org/project/kilo-proxy/)
 [![GitHub](https://img.shields.io/github/license/notlousybook/KiloProxy)](https://github.com/notlousybook/KiloProxy)
 
-A fully OpenAI-compatible API proxy for Kilo.
+Fully OpenAI and Claude-compatible API proxy for Kilo.
 
 [GitHub](https://github.com/notlousybook/KiloProxy) • [PyPI](https://pypi.org/project/kilo-proxy/)
 
 ## Features
 
 - **Full OpenAI API compatibility** - chat completions, completions, embeddings, models
+- **Full Claude API compatibility** - Anthropic Messages API with streaming
 - **All OpenAI parameters supported** - max_tokens, temperature, tools, stream, response_format, etc.
-- **Streaming SSE support** - real-time streaming responses
+- **Streaming SSE support** - real-time streaming responses for both APIs
 - **Background server mode** - run as a daemon process
 - **Token authentication management** - easy auth configuration
 - **Cross-platform** - Windows, macOS, Linux
@@ -222,6 +223,8 @@ Works on Windows (Task Scheduler), macOS (LaunchAgents), and Linux (systemd user
 
 ## API Endpoints
 
+### OpenAI-compatible
+
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/v1/models` | List all available models |
@@ -232,6 +235,12 @@ Works on Windows (Task Scheduler), macOS (LaunchAgents), and Linux (systemd user
 | GET | `/v1/engines` | List engines (legacy) |
 | GET | `/health` | Health check endpoint |
 
+### Claude-compatible
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/v1/messages` | Create a message (Anthropic API) |
+
 ## Usage Examples
 
 ### List Models
@@ -240,11 +249,12 @@ Works on Windows (Task Scheduler), macOS (LaunchAgents), and Linux (systemd user
 curl http://localhost:5380/v1/models
 ```
 
-### Chat Completion (Non-streaming)
+### OpenAI Chat Completion (Non-streaming)
 
 ```bash
 curl http://localhost:5380/v1/chat/completions \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your-token" \
   -d '{
     "model": "z-ai/glm-5:free",
     "messages": [
@@ -255,11 +265,12 @@ curl http://localhost:5380/v1/chat/completions \
   }'
 ```
 
-### Chat Completion (Streaming)
+### OpenAI Chat Completion (Streaming)
 
 ```bash
 curl http://localhost:5380/v1/chat/completions \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your-token" \
   -d '{
     "model": "z-ai/glm-5:free",
     "messages": [
@@ -268,6 +279,76 @@ curl http://localhost:5380/v1/chat/completions \
     "stream": true,
     "max_tokens": 500
   }'
+```
+
+### Claude Message (Non-streaming)
+
+```bash
+curl http://localhost:5380/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: your-token" \
+  -H "anthropic-version: 2023-06-01" \
+  -d '{
+    "model": "claude-3-5-sonnet-20241022",
+    "max_tokens": 1024,
+    "system": "You are a helpful assistant.",
+    "messages": [
+      {"role": "user", "content": "Hello!"}
+    ]
+  }'
+```
+
+### Claude Message (Streaming)
+
+```bash
+curl http://localhost:5380/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: your-token" \
+  -H "anthropic-version: 2023-06-01" \
+  -d '{
+    "model": "claude-3-5-sonnet-20241022",
+    "max_tokens": 1024,
+    "stream": true,
+    "messages": [
+      {"role": "user", "content": "Tell me a joke"}
+    ]
+  }'
+```
+
+### Python (OpenAI SDK)
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    api_key="your-token",
+    base_url="http://localhost:5380/v1"
+)
+
+response = client.chat.completions.create(
+    model="z-ai/glm-5:free",
+    messages=[{"role": "user", "content": "Hello!"}],
+    max_tokens=100
+)
+print(response.choices[0].message.content)
+```
+
+### Python (Anthropic SDK)
+
+```python
+import anthropic
+
+client = anthropic.Anthropic(
+    api_key="your-token",
+    base_url="http://localhost:5380"
+)
+
+message = client.messages.create(
+    model="claude-3-5-sonnet-20241022",
+    max_tokens=1024,
+    messages=[{"role": "user", "content": "Hello!"}]
+)
+print(message.content[0].text)
 ```
 
 ## Configuration
