@@ -26,3 +26,10 @@ env/
 .git2/
 kilohttp.txt
 nul
+
+# Keys (never commit secrets!)
+.keys/
+*.pem
+*.key
+id_rsa
+id_ed25519
