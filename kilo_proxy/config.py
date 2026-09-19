@@ -27,6 +27,9 @@ class Config(BaseModel):
     proxy_list: List[str] = []
     current_proxy_index: int = 0
     last_shuffle_time: float = 0.0
+    logging_enabled: bool = True
+    log_level: str = "INFO"
+    log_retention_days: int = 30
 
     def __init__(self, **data):
         super().__init__(**data)

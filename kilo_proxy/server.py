@@ -24,14 +24,21 @@ from kilo_proxy.proxy import (
 LOG_DIR = Path.home() / ".kilo-proxy" / "logs"
 LOG_FILE = LOG_DIR / "server.log"
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.FileHandler(LOG_FILE, encoding="utf-8"),
-        logging.StreamHandler(),
-    ],
-)
+config = load_config()
+
+if config.logging_enabled:
+    log_level = getattr(logging, config.log_level.upper(), logging.INFO)
+    logging.basicConfig(
+        level=log_level,
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        handlers=[
+            logging.FileHandler(LOG_FILE, encoding="utf-8"),
+            logging.StreamHandler(),
+        ],
+    )
+else:
+    logging.basicConfig(level=logging.WARNING)
+
 logger = logging.getLogger("kilo-proxy")
 
 app = FastAPI(
@@ -49,8 +56,24 @@ app.add_middleware(
 )
 
 
+def cleanup_old_logs():
+    """Remove log files older than retention days."""
+    import time
+    config = load_config()
+    if not LOG_DIR.exists():
+        return
+    cutoff = time.time() - (config.log_retention_days * 86400)
+    for log_file in LOG_DIR.glob("*.log*"):
+        if log_file.is_file() and log_file.stat().st_mtime < cutoff:
+            try:
+                log_file.unlink()
+            except Exception:
+                pass
+
+
 @app.on_event("startup")
 async def startup_event():
+    cleanup_old_logs()
     logger.info("Starting Kilo Proxy server")
     await init_shuffler()
 

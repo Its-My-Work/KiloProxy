@@ -1595,5 +1595,62 @@ def shuffle_status():
             console.print(f"  {marker}{i + 1}. {proxy}")
 
 
+@app.command("logging")
+def logging_cmd(
+    action: str = typer.Argument(..., help="on/off/status/clean"),
+    level: str = typer.Option("INFO", "--level", "-l", help="Log level (DEBUG/INFO/WARNING/ERROR)"),
+    retention: int = typer.Option(30, "--retention", "-r", help="Log retention in days"),
+):
+    """Configure logging settings."""
+    config = load_config()
+
+    if action == "status":
+        table = Table(title="Logging Status")
+        table.add_column("Property", style="cyan")
+        table.add_column("Value", style="green")
+        table.add_row("Enabled", "[green]ON[/green]" if config.logging_enabled else "[yellow]OFF[/yellow]")
+        table.add_row("Level", config.log_level)
+        table.add_row("Retention", f"{config.log_retention_days} days")
+        table.add_row("Log File", str(LOG_FILE))
+        if LOG_FILE.exists():
+            size = LOG_FILE.stat().st_size
+            table.add_row("Log Size", f"{size / 1024:.1f} KB")
+        console.print(table)
+        return
+
+    if action == "on":
+        config.logging_enabled = True
+        config.log_level = level.upper()
+        config.log_retention_days = retention
+        save_config(config)
+        console.print(f"[green]Logging enabled (level: {level.upper()}, retention: {retention} days)[/green]")
+        console.print("[cyan]Restart server for changes to take effect[/cyan]")
+        return
+
+    if action == "off":
+        config.logging_enabled = False
+        save_config(config)
+        console.print("[yellow]Logging disabled[/yellow]")
+        console.print("[cyan]Restart server for changes to take effect[/cyan]")
+        return
+
+    if action == "clean":
+        if not LOG_DIR.exists():
+            console.print("[yellow]No log directory found[/yellow]")
+            return
+        count = 0
+        for log_file in LOG_DIR.glob("*.log*"):
+            if log_file.is_file():
+                size = log_file.stat().st_size
+                log_file.unlink()
+                count += 1
+                console.print(f"[dim]Removed: {log_file.name} ({size / 1024:.1f} KB)[/dim]")
+        console.print(f"[green]Cleaned {count} log files[/green]")
+        return
+
+    console.print(f"[red]Unknown action: {action}[/red]")
+    console.print("Actions: on, off, status, clean")
+
+
 if __name__ == "__main__":
     app()
